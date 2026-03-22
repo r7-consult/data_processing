@@ -1,6 +1,7 @@
 {
   "name": "Обработка данных",
-  "organization": "",
+  "organization": "ООО Датаконс",
+  "offered": "ООО Датаконс",
   "nameLocale": {
     "ru": "Обработка данных",
     "en": "Data Processing"
@@ -9,10 +10,10 @@
   "version": "0.1.0",
   "variations": [
     {
-      "description": "Data processing catalog plugin",
+      "description": "Каталог решений для сравнения и анализа файлов, ClickHouse, OLAP и коммерческих инструментов обработки данных.",
       "descriptionLocale": {
-        "ru": "Каталог решений по обработке данных",
-        "en": "Data processing catalog"
+        "ru": "Каталог решений для сравнения и анализа файлов, ClickHouse, OLAP и коммерческих инструментов обработки данных.",
+        "en": "Catalog of solutions for file comparison, file analysis, ClickHouse, OLAP, and commercial data-processing tools."
       },
       "url": "index.html",
       "icons": [
@@ -29,7 +30,27 @@
       "initDataType": "none",
       "initData": "",
       "isUpdateOleOnResize": false,
-      "buttons": []
+      "buttons": [],
+      "store": {
+        "background": {
+          "light": "#f3f3f3",
+          "dark": "#252526"
+        },
+        "screenshots": [
+          "resources/store/screenshots/screen_1.png",
+          "resources/store/screenshots/screen_2.png",
+          "resources/store/screenshots/screen_3.png",
+          "resources/store/screenshots/screen_4.png"
+        ],
+        "icons": {
+          "light": "resources/icons/main/light/icon.svg",
+          "dark": "resources/icons/main/dark/icon.svg"
+        },
+        "categories": [
+          "work",
+          "devTools"
+        ]
+      }
     }
   ]
 }
