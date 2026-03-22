@@ -88,6 +88,7 @@
     this.busy = !!isBusy;
     document.body.classList.toggle('gw-busy', this.busy);
     if (message) {
+      window.GameWizardUI.setMeta(message);
       window.GameWizardUI.setStatus(message);
     }
   };
@@ -154,12 +155,16 @@
     });
   };
 
-  GameWizardPlugin.prototype.withMutation = function(label, operation, successMessage) {
+  GameWizardPlugin.prototype.withMutation = function(label, operation, successMessage, pendingState) {
     var self = this;
 
     if (this.busy) {
       window.GameWizardUI.setStatus('Дождитесь окончания текущей операции');
       return;
+    }
+
+    if (pendingState && pendingState.recordId && pendingState.actionType) {
+      window.GameWizardUI.setPendingAction(pendingState.recordId, pendingState.actionType, pendingState.busyLabel);
     }
 
     this.setBusy(true, label);
@@ -168,9 +173,11 @@
       self.applySnapshot(snapshot, successMessage);
     }).catch(function(error) {
       var details = error && error.message ? error.message : 'неизвестная ошибка';
+      window.GameWizardUI.setMeta('Ошибка операции');
       window.GameWizardUI.setStatus(label + ' Ошибка: ' + details);
       console.error('[GameWizard] Mutation failed', error);
     }).then(function() {
+      window.GameWizardUI.setPendingAction();
       self.setBusy(false);
     });
   };
@@ -209,7 +216,11 @@
       return;
     }
 
-    this.withMutation('Установка ' + record.title + '...', this.service.install.bind(this.service, recordId), 'Установлено: ' + record.title);
+    this.withMutation('Установка ' + record.title + '...', this.service.install.bind(this.service, recordId), 'Установлено: ' + record.title, {
+      recordId: recordId,
+      actionType: 'install',
+      busyLabel: 'Установка...'
+    });
   };
 
   GameWizardPlugin.prototype.removeModule = function(recordId) {
@@ -218,7 +229,11 @@
       return;
     }
 
-    this.withMutation('Удаление ' + record.title + '...', this.service.remove.bind(this.service, recordId), 'Удалено: ' + record.title);
+    this.withMutation('Удаление ' + record.title + '...', this.service.remove.bind(this.service, recordId), 'Удалено: ' + record.title, {
+      recordId: recordId,
+      actionType: 'remove',
+      busyLabel: 'Удаление...'
+    });
   };
 
   GameWizardPlugin.prototype.updateModule = function(recordId) {
@@ -227,7 +242,11 @@
       return;
     }
 
-    this.withMutation('Обновление ' + record.title + '...', this.service.update.bind(this.service, recordId), 'Обновлено: ' + record.title);
+    this.withMutation('Обновление ' + record.title + '...', this.service.update.bind(this.service, recordId), 'Обновлено: ' + record.title, {
+      recordId: recordId,
+      actionType: 'update',
+      busyLabel: 'Обновление...'
+    });
   };
 
   GameWizardPlugin.prototype.buildHostedOleLaunchContext = function(text) {

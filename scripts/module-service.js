@@ -17,6 +17,22 @@
     return result;
   }
 
+  function createLookup(items) {
+    var lookup = Object.create(null);
+
+    if (!Array.isArray(items)) {
+      return lookup;
+    }
+
+    for (var i = 0; i < items.length; i += 1) {
+      if (items[i]) {
+        lookup[items[i]] = true;
+      }
+    }
+
+    return lookup;
+  }
+
   function sortByDepthDesc(items) {
     return items.slice().sort(function(left, right) {
       return String(right || '').length - String(left || '').length;
@@ -538,9 +554,10 @@
     });
   }
 
-  function mergeModules(localModules, remoteResult) {
+  function mergeModules(localModules, remoteResult, bundledAvailableModules) {
     var localMap = Object.create(null);
     var remoteMap = Object.create(null);
+    var bundledMap = Object.create(null);
     var keys = [];
     var remoteAvailable = !!remoteResult.available;
 
@@ -558,6 +575,13 @@
       keys.push(remoteKey);
     }
 
+    for (var bundledIndex = 0; bundledIndex < bundledAvailableModules.length; bundledIndex += 1) {
+      var bundledInfo = bundledAvailableModules[bundledIndex];
+      var bundledKey = buildRecordKey(bundledInfo);
+      bundledMap[bundledKey] = bundledInfo;
+      keys.push(bundledKey);
+    }
+
     keys = uniqueArray(keys);
 
     var records = [];
@@ -565,24 +589,30 @@
       var key = keys[index];
       var localEntry = localMap[key] || null;
       var remoteEntry = remoteMap[key] || null;
+      var bundledEntry = bundledMap[key] || null;
+      var installEntry = remoteEntry || bundledEntry || null;
       var state = 'available';
       var base = null;
       var launchMode = 'direct';
       var launchUrl = '';
       var isExternalLink = false;
+      var hasBundledSource = false;
 
       if (localEntry && remoteEntry) {
         state = compareVersions(localEntry.version, remoteEntry.version) < 0 ? 'update-available' : 'installed';
       } else if (localEntry && !remoteEntry) {
         state = remoteAvailable ? 'local-only' : 'installed';
-      } else if (remoteEntry && !localEntry) {
+      } else if ((remoteEntry || bundledEntry) && !localEntry) {
         state = 'available';
       }
 
-      base = localEntry || remoteEntry;
-      launchMode = localEntry ? localEntry.launchMode : (remoteEntry ? remoteEntry.launchMode : 'direct');
-      launchUrl = localEntry && localEntry.launchUrl ? localEntry.launchUrl : (remoteEntry ? remoteEntry.launchUrl : '');
+      base = localEntry || bundledEntry || remoteEntry;
+      launchMode = localEntry ? localEntry.launchMode : (bundledEntry ? bundledEntry.launchMode : (remoteEntry ? remoteEntry.launchMode : 'direct'));
+      launchUrl = localEntry && localEntry.launchUrl
+        ? localEntry.launchUrl
+        : (bundledEntry && bundledEntry.launchUrl ? bundledEntry.launchUrl : (remoteEntry ? remoteEntry.launchUrl : ''));
       isExternalLink = launchMode === 'external-link';
+      hasBundledSource = !!bundledEntry || !!(localEntry && localEntry.isBundled);
 
       if (isExternalLink) {
         state = 'external-link';
@@ -591,38 +621,42 @@
       records.push({
         id: key,
         guid: base.guid,
-        module: localEntry ? localEntry.module : remoteEntry.module,
+        module: localEntry ? localEntry.module : (bundledEntry ? bundledEntry.module : remoteEntry.module),
         localModule: localEntry ? localEntry.module : '',
-        remoteModule: remoteEntry ? remoteEntry.module : '',
-        title: localEntry ? localEntry.title : remoteEntry.title,
-        description: localEntry ? localEntry.description : remoteEntry.description,
+        remoteModule: installEntry ? installEntry.module : '',
+        title: localEntry ? localEntry.title : (bundledEntry ? bundledEntry.title : remoteEntry.title),
+        description: localEntry ? localEntry.description : (bundledEntry ? bundledEntry.description : remoteEntry.description),
         localVersion: localEntry ? localEntry.version : '',
-        remoteVersion: remoteEntry ? remoteEntry.version : '',
-        version: localEntry ? localEntry.version : remoteEntry.version,
+        remoteVersion: remoteEntry ? remoteEntry.version : (bundledEntry ? bundledEntry.version : ''),
+        version: localEntry ? localEntry.version : (bundledEntry ? bundledEntry.version : remoteEntry.version),
         catalogIndex: Math.min(
           localEntry && typeof localEntry.catalogIndex === 'number' ? localEntry.catalogIndex : 9999,
-          remoteEntry && typeof remoteEntry.catalogIndex === 'number' ? remoteEntry.catalogIndex : 9999
+          remoteEntry && typeof remoteEntry.catalogIndex === 'number' ? remoteEntry.catalogIndex : 9999,
+          bundledEntry && typeof bundledEntry.catalogIndex === 'number' ? bundledEntry.catalogIndex : 9999
         ),
         state: state,
-        iconUrl: localEntry && localEntry.iconUrl ? localEntry.iconUrl : (remoteEntry ? remoteEntry.iconUrl : ''),
-        iconText: localEntry ? localEntry.iconText : remoteEntry.iconText,
+        iconUrl: localEntry && localEntry.iconUrl ? localEntry.iconUrl : (bundledEntry && bundledEntry.iconUrl ? bundledEntry.iconUrl : (remoteEntry ? remoteEntry.iconUrl : '')),
+        iconText: localEntry ? localEntry.iconText : (bundledEntry ? bundledEntry.iconText : remoteEntry.iconText),
         launchUrl: launchUrl,
-        moduleEntry: localEntry ? localEntry.moduleEntry : (remoteEntry ? remoteEntry.moduleEntry : ''),
+        moduleEntry: localEntry ? localEntry.moduleEntry : (bundledEntry ? bundledEntry.moduleEntry : (remoteEntry ? remoteEntry.moduleEntry : '')),
         launchMode: launchMode,
-        actionLabel: localEntry && localEntry.actionLabel ? localEntry.actionLabel : (remoteEntry ? remoteEntry.actionLabel : ''),
-        size: localEntry && localEntry.size ? localEntry.size : (remoteEntry ? remoteEntry.size : null),
-        minSize: localEntry && localEntry.minSize ? localEntry.minSize : (remoteEntry ? remoteEntry.minSize : null),
-        maxSize: localEntry && localEntry.maxSize ? localEntry.maxSize : (remoteEntry ? remoteEntry.maxSize : null),
+        actionLabel: localEntry && localEntry.actionLabel ? localEntry.actionLabel : (bundledEntry && bundledEntry.actionLabel ? bundledEntry.actionLabel : (remoteEntry ? remoteEntry.actionLabel : '')),
+        size: localEntry && localEntry.size ? localEntry.size : (bundledEntry && bundledEntry.size ? bundledEntry.size : (remoteEntry ? remoteEntry.size : null)),
+        minSize: localEntry && localEntry.minSize ? localEntry.minSize : (bundledEntry && bundledEntry.minSize ? bundledEntry.minSize : (remoteEntry ? remoteEntry.minSize : null)),
+        maxSize: localEntry && localEntry.maxSize ? localEntry.maxSize : (bundledEntry && bundledEntry.maxSize ? bundledEntry.maxSize : (remoteEntry ? remoteEntry.maxSize : null)),
         hasLocal: !!localEntry,
-        hasRemote: !!remoteEntry,
+        hasRemote: !!installEntry,
+        hasRemoteSource: !!remoteEntry,
+        hasBundledSource: hasBundledSource,
+        isBundled: hasBundledSource,
         canLaunch: isExternalLink ? !!launchUrl : !!localEntry,
-        canInstall: !isExternalLink && !localEntry && !!remoteEntry,
+        canInstall: !isExternalLink && !localEntry && !!installEntry,
         canUpdate: !isExternalLink && !!localEntry && !!remoteEntry && compareVersions(localEntry.version, remoteEntry.version) < 0,
         canRemove: !isExternalLink && !!localEntry,
         badge: localEntry && localEntry.badge ? localEntry.badge : (remoteEntry && remoteEntry.badge ? remoteEntry.badge : (state === 'local-only' ? 'delete' : '')),
         remoteAvailable: remoteAvailable,
         localModulePath: localEntry ? localEntry.localModulePath : '',
-        remoteConfigUrl: remoteEntry ? remoteEntry.configUrl : ''
+        remoteConfigUrl: remoteEntry ? remoteEntry.configUrl : (bundledEntry ? bundledEntry.configUrl : '')
       });
     }
 
@@ -1115,9 +1149,20 @@
     return uniqueArray(names);
   };
 
+  ModuleService.prototype.enableLocalModule = function(moduleName) {
+    return this.persistLocalCatalog(this.getKnownLocalModuleNames().concat([moduleName]));
+  };
+
+  ModuleService.prototype.disableLocalModule = function(moduleName) {
+    return this.persistLocalCatalog(this.getKnownLocalModuleNames().filter(function(localModuleName) {
+      return localModuleName && localModuleName !== moduleName;
+    }));
+  };
+
   ModuleService.prototype.refresh = function(extraCandidateNames) {
     var self = this;
     var forcedModules = Array.isArray(extraCandidateNames) ? uniqueArray(extraCandidateNames.filter(Boolean)) : [];
+    var hasLocalCatalog = !!(this.localCatalogPath && this.exists(this.localCatalogPath));
 
     return Promise.all([
       this.tryReadCatalogFile(this.bundledCatalogPath),
@@ -1127,20 +1172,54 @@
       var bundledModules = results[0];
       var cachedModules = results[1];
       var scannedModules = results[2];
-      var candidates = uniqueArray(forcedModules.concat(bundledModules, cachedModules, scannedModules));
+      var bundledLookup = createLookup(bundledModules);
+      var nonBundledScannedModules = scannedModules.filter(function(moduleName) {
+        return !bundledLookup[moduleName];
+      });
+      var enabledModules = hasLocalCatalog
+        ? uniqueArray(cachedModules.concat(nonBundledScannedModules))
+        : uniqueArray(bundledModules.concat(nonBundledScannedModules));
+      var disabledBundledModules = bundledModules.filter(function(moduleName) {
+        return enabledModules.indexOf(moduleName) === -1;
+      });
+      var candidates = uniqueArray(enabledModules.concat(disabledBundledModules, forcedModules));
 
       return Promise.all([
         self.readLocalModules(candidates),
         self.readRemoteModules()
-      ]);
-    }).then(function(data) {
-      var localModules = data[0];
-      var remoteResult = data[1];
+      ]).then(function(data) {
+        return {
+          discoveredModules: data[0],
+          remoteResult: data[1],
+          bundledModules: bundledModules,
+          enabledModules: enabledModules
+        };
+      });
+    }).then(function(state) {
+      var bundledLookup = createLookup(state.bundledModules);
+      var enabledLookup = createLookup(state.enabledModules);
+      var localModules = [];
+      var bundledAvailableModules = [];
+
+      for (var discoveredIndex = 0; discoveredIndex < state.discoveredModules.length; discoveredIndex += 1) {
+        var discoveredModule = state.discoveredModules[discoveredIndex];
+        if (!discoveredModule) {
+          continue;
+        }
+
+        discoveredModule.isBundled = !!bundledLookup[discoveredModule.module];
+
+        if (enabledLookup[discoveredModule.module]) {
+          localModules.push(discoveredModule);
+        } else if (discoveredModule.isBundled) {
+          bundledAvailableModules.push(discoveredModule);
+        }
+      }
 
       return Promise.all(localModules.map(function(item) {
         return self.ensureModuleManifest(item);
       })).then(function() {
-        var records = mergeModules(localModules, remoteResult);
+        var records = mergeModules(localModules, state.remoteResult, bundledAvailableModules);
         var mutationSupported = self.hasDesktopBridge() && !!self.modulesRootPath;
 
         for (var recordIndex = 0; recordIndex < records.length; recordIndex += 1) {
@@ -1152,7 +1231,9 @@
         self.lastSnapshot = {
           records: records,
           localModules: localModules,
-          remote: remoteResult
+          bundledModules: state.bundledModules,
+          enabledModules: state.enabledModules,
+          remote: state.remoteResult
         };
 
         return self.persistLocalCatalog(localModules.map(function(item) {
@@ -1204,6 +1285,25 @@
     var self = this;
     var context = this.resolveGitHubContext();
     var moduleRootRelative = joinUrlPath(context.modulesRoot, moduleName);
+    var manifestUrl = context.rawBaseUrl + '/' + joinUrlPath(moduleRootRelative, 'module-manifest.json');
+
+    function buildFilesFromManifest(payload) {
+      var files = payload && Array.isArray(payload.files) ? payload.files.map(function(relativePath) {
+        return normalizeSlashes(relativePath);
+      }).filter(Boolean) : [];
+
+      if (!files.length) {
+        throw new Error('Remote module manifest is empty for ' + moduleName);
+      }
+
+      return files.map(function(relativePath) {
+        return {
+          path: joinUrlPath(moduleRootRelative, relativePath),
+          relativePath: relativePath,
+          downloadUrl: context.rawBaseUrl + '/' + joinUrlPath(moduleRootRelative, relativePath)
+        };
+      });
+    }
 
     function walk(path) {
       return self.fetchGitHubDirectory(path).then(function(payload) {
@@ -1241,23 +1341,31 @@
       });
     }
 
-    return walk(moduleRootRelative);
+    return fetchText(manifestUrl).then(function(text) {
+      return buildFilesFromManifest(parseJson(text, manifestUrl));
+    }).catch(function() {
+      return walk(moduleRootRelative).catch(function(error) {
+        if (/HTTP 403 .*api\.github\.com/i.test(String(error && error.message || ''))) {
+          throw new Error('GitHub API rate limit exceeded and remote module manifest is unavailable: ' + manifestUrl);
+        }
+        throw error;
+      });
+    });
   };
 
-  ModuleService.prototype.install = function(recordId) {
+  ModuleService.prototype.installRemoteModuleFiles = function(moduleName) {
     var self = this;
-    var record = this.findRecord(recordId);
 
-    if (!record || !record.hasRemote) {
-      return Promise.reject(new Error('Модуль для установки не найден в удаленном каталоге'));
+    if (!moduleName) {
+      return Promise.reject(new Error('Не указано имя модуля для установки'));
     }
 
-    return this.collectRemoteFiles(record.remoteModule).then(function(files) {
+    return this.collectRemoteFiles(moduleName).then(function(files) {
       if (!files.length) {
         throw new Error('Удаленный модуль не содержит файлов');
       }
 
-      var moduleRootPath = joinNativePath(self.modulesRootPath, record.remoteModule);
+      var moduleRootPath = joinNativePath(self.modulesRootPath, moduleName);
       var downloadedRelativePaths = [];
       var chain = Promise.resolve();
 
@@ -1273,14 +1381,31 @@
 
       return chain.then(function() {
         self.writeModuleManifest(
-          record.remoteModule,
+          moduleName,
           moduleRootPath,
           downloadedRelativePaths,
           deriveDirectoriesFromFiles(downloadedRelativePaths)
         );
-      }).then(function() {
-        return self.persistLocalCatalog(self.getKnownLocalModuleNames().concat([record.remoteModule]));
       });
+    });
+  };
+
+  ModuleService.prototype.install = function(recordId) {
+    var self = this;
+    var record = this.findRecord(recordId);
+
+    if (!record || !record.hasRemote) {
+      return Promise.reject(new Error('Модуль для установки не найден в удаленном каталоге'));
+    }
+
+    if (record.hasBundledSource && !record.hasLocal) {
+      return this.enableLocalModule(record.remoteModule || record.module).then(function() {
+        return self.refresh();
+      });
+    }
+
+    return this.installRemoteModuleFiles(record.remoteModule).then(function() {
+      return self.enableLocalModule(record.remoteModule);
     }).then(function() {
       return self.refresh([record.remoteModule]);
     });
@@ -1331,6 +1456,12 @@
       return Promise.reject(new Error('Локальный модуль для удаления не найден'));
     }
 
+    if (record.isBundled) {
+      return this.disableLocalModule(record.localModule).then(function() {
+        return self.refresh();
+      });
+    }
+
     return this.buildLocalRemovalPlan(record).then(function(plan) {
       var uniqueFiles = sortByDepthDesc(uniqueArray((plan.files || []).concat(['config.json', 'module-manifest.json'])));
       var uniqueDirectories = sortByDepthDesc(uniqueArray((plan.directories || []).concat(deriveDirectoriesFromFiles(uniqueFiles))));
@@ -1359,9 +1490,7 @@
         console.warn('[GameWizard] Failed to remove module root', record.localModulePath, rootError);
       }
     }).then(function() {
-      return self.persistLocalCatalog(self.getKnownLocalModuleNames().filter(function(moduleName) {
-        return moduleName && moduleName !== record.localModule;
-      }));
+      return self.disableLocalModule(record.localModule);
     }).then(function() {
       return self.refresh();
     });
@@ -1369,6 +1498,16 @@
 
   ModuleService.prototype.update = function(recordId) {
     var self = this;
+    var record = this.findRecord(recordId);
+
+    if (record && record.isBundled && record.hasRemoteSource) {
+      return this.installRemoteModuleFiles(record.remoteModule).then(function() {
+        return self.enableLocalModule(record.remoteModule);
+      }).then(function() {
+        return self.refresh([record.remoteModule]);
+      });
+    }
+
     return this.remove(recordId).then(function() {
       return self.install(recordId);
     });
