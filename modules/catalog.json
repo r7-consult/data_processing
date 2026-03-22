@@ -1,10 +1,11 @@
 {
   "modules": [
-    { "module": "10_xlsx_compare_files" },
-    { "module": "20_xlsx_analyze_files" },
-    { "module": "30_clickhouse" },
-    { "module": "40_olap" },
-    { "module": "90_macro_checker_card" },
-    { "module": "91_fileservice_card" }
+    { "module": "xlsx_compare_files" },
+    { "module": "xlsx_analyze_files" },
+    { "module": "clickhouse" },
+    { "module": "olap" },
+    { "module": "macro_checker_card" },
+    { "module": "fileservice_card" },
+    { "module": "macro_exceljs_card" }
   ]
 }

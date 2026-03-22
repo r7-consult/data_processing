@@ -461,6 +461,7 @@
 
     return {
       module: options.module,
+      catalogIndex: typeof options.catalogIndex === 'number' ? options.catalogIndex : 9999,
       guid: config.guid || ('module:' + options.module),
       title: title,
       description: description,
@@ -522,9 +523,15 @@
     return records.slice().sort(function(left, right) {
       var leftOrder = Object.prototype.hasOwnProperty.call(order, left.state) ? order[left.state] : 99;
       var rightOrder = Object.prototype.hasOwnProperty.call(order, right.state) ? order[right.state] : 99;
+      var leftCatalogIndex = typeof left.catalogIndex === 'number' ? left.catalogIndex : 9999;
+      var rightCatalogIndex = typeof right.catalogIndex === 'number' ? right.catalogIndex : 9999;
 
       if (leftOrder !== rightOrder) {
         return leftOrder - rightOrder;
+      }
+
+      if (leftCatalogIndex !== rightCatalogIndex) {
+        return leftCatalogIndex - rightCatalogIndex;
       }
 
       return left.title.localeCompare(right.title, 'ru');
@@ -592,6 +599,10 @@
         localVersion: localEntry ? localEntry.version : '',
         remoteVersion: remoteEntry ? remoteEntry.version : '',
         version: localEntry ? localEntry.version : remoteEntry.version,
+        catalogIndex: Math.min(
+          localEntry && typeof localEntry.catalogIndex === 'number' ? localEntry.catalogIndex : 9999,
+          remoteEntry && typeof remoteEntry.catalogIndex === 'number' ? remoteEntry.catalogIndex : 9999
+        ),
         state: state,
         iconUrl: localEntry && localEntry.iconUrl ? localEntry.iconUrl : (remoteEntry ? remoteEntry.iconUrl : ''),
         iconText: localEntry ? localEntry.iconText : remoteEntry.iconText,
@@ -906,7 +917,7 @@
     var tasks = [];
 
     for (var i = 0; i < candidateNames.length; i += 1) {
-      (function(moduleName) {
+      (function(moduleName, catalogIndex) {
         if (!moduleName || isHiddenModule(self.config, moduleName)) {
           return;
         }
@@ -922,6 +933,7 @@
           var baseUrl = new URL('modules/' + moduleName + '/', window.location.href).toString();
           return createStandaloneModuleRecord({
             module: moduleName,
+            catalogIndex: catalogIndex,
             config: config,
             configUrl: new URL('config.json', baseUrl).toString(),
             baseUrl: baseUrl,
@@ -935,7 +947,7 @@
           console.warn('[GameWizard] Failed to read local module config', moduleName, error);
           return null;
         }));
-      })(candidateNames[i]);
+      })(candidateNames[i], i);
     }
 
     return Promise.all(tasks).then(function(items) {
@@ -966,7 +978,7 @@
       var tasks = [];
 
       for (var i = 0; i < moduleNames.length; i += 1) {
-        (function(moduleName) {
+        (function(moduleName, catalogIndex) {
           if (isHiddenModule(self.config, moduleName)) {
             return;
           }
@@ -978,6 +990,7 @@
             var config = parseJson(configText, configUrl);
             return createStandaloneModuleRecord({
               module: moduleName,
+              catalogIndex: catalogIndex,
               config: config,
               configUrl: configUrl,
               baseUrl: baseUrl,
@@ -986,7 +999,7 @@
               source: 'remote'
             });
           }));
-        })(moduleNames[i]);
+        })(moduleNames[i], i);
       }
 
       return Promise.all(tasks).then(function(modules) {
@@ -1114,7 +1127,7 @@
       var bundledModules = results[0];
       var cachedModules = results[1];
       var scannedModules = results[2];
-      var candidates = uniqueArray(forcedModules.concat(scannedModules, cachedModules, bundledModules));
+      var candidates = uniqueArray(forcedModules.concat(bundledModules, cachedModules, scannedModules));
 
       return Promise.all([
         self.readLocalModules(candidates),

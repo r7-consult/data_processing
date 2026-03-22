@@ -128,9 +128,21 @@
 
   function openExternalLink(url) {
     var popup = null;
+    var anchor = null;
+
+    if (!url) {
+      throw new Error('External link is not configured');
+    }
 
     try {
-      popup = window.open(url, '_blank', 'noopener,noreferrer');
+      if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === 'function') {
+        window.Asc.plugin.executeMethod('OpenLink', [url]);
+        return { type: 'open-link-method', url: url };
+      }
+    } catch (_) {}
+
+    try {
+      popup = window.open(url, '_blank', 'noopener');
     } catch (_) {
       popup = null;
     }
@@ -142,8 +154,42 @@
       return popup;
     }
 
-    window.location.href = url;
-    return { type: 'redirect' };
+    try {
+      if (window.top && window.top !== window && typeof window.top.open === 'function') {
+        popup = window.top.open(url, '_blank', 'noopener');
+      }
+    } catch (_) {
+      popup = null;
+    }
+
+    if (popup) {
+      try {
+        popup.opener = null;
+      } catch (_) {}
+      return popup;
+    }
+
+    try {
+      anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer';
+      anchor.style.position = 'absolute';
+      anchor.style.left = '-9999px';
+      anchor.style.width = '1px';
+      anchor.style.height = '1px';
+      document.body.appendChild(anchor);
+      anchor.click();
+      return { type: 'anchor-click', url: url };
+    } catch (_) {
+      // fall through to the explicit error below
+    } finally {
+      if (anchor && anchor.parentNode) {
+        anchor.parentNode.removeChild(anchor);
+      }
+    }
+
+    throw new Error('External link could not be opened');
   }
 
   function getPluginInfo() {

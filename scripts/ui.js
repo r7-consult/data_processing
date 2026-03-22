@@ -98,7 +98,8 @@
   }
 
   function createCard(record, handlers) {
-    var card = createElement('article', 'module-card module-card--' + record.state);
+    var isExternalLink = record.launchMode === 'external-link' && !!record.launchUrl;
+    var card = createElement(isExternalLink ? 'a' : 'article', 'module-card module-card--' + record.state);
     var actions = createElement('div', 'module-card-actions');
     var main = createElement('div', 'module-card-main');
     var title = createElement('div', 'module-card-title', record.title);
@@ -106,6 +107,13 @@
     var launchLabel = record.actionLabel || (record.launchMode === 'external-link' ? 'Перейти' : 'Открыть');
 
     card.setAttribute('data-record-id', record.id);
+
+    if (isExternalLink) {
+      card.href = record.launchUrl;
+      card.target = '_blank';
+      card.rel = 'noopener noreferrer';
+    }
+
     card.appendChild(createIcon(record));
 
     if (record.badge) {
@@ -117,10 +125,8 @@
     main.appendChild(createMetaLine(record));
     card.appendChild(main);
 
-    if (record.launchMode === 'external-link' && record.canLaunch) {
-      actions.appendChild(createActionButton(launchLabel, 'module-action module-action--secondary', function() {
-        handlers.onOpen(record.id);
-      }));
+    if (isExternalLink && record.canLaunch) {
+      actions.appendChild(createElement('span', 'module-card-action-hint', launchLabel));
     }
 
     if (record.canInstall) {
@@ -147,13 +153,15 @@
 
     card.appendChild(actions);
 
-    if (record.canLaunch) {
+    if (record.canLaunch && !isExternalLink) {
       card.classList.add('is-clickable');
       card.tabIndex = 0;
       card.setAttribute('role', 'button');
       bindCardActivation(card, function() {
         handlers.onOpen(record.id);
       });
+    } else if (isExternalLink) {
+      card.classList.add('is-clickable');
     }
 
     return card;

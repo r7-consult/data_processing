@@ -1,5 +1,5 @@
 {
-  "name": "Data Processing",
+  "name": "Обработка данных",
   "organization": "",
   "nameLocale": {
     "ru": "Обработка данных",
@@ -16,8 +16,8 @@
       },
       "url": "index.html",
       "icons": [
-        "resources/icons/main/light/icon.png",
-        "resources/icons/main/dark/icon.png"
+        "resources/icons/main/light/icon.svg",
+        "resources/icons/main/dark/icon.svg"
       ],
       "isViewer": true,
       "EditorsSupport": [
